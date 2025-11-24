@@ -1,3 +1,4 @@
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, collection, doc, onSnapshot, updateDoc, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -127,7 +128,8 @@ function createMatchCard(match) {
     const isPenriceBatting = match.penriceStatus === 'batting', homeScoreText = `${match.homeScore || 0}-${match.homeWickets || 0}`, awayScoreText = `${match.awayScore || 0}-${match.awayWickets || 0}`, currentOver = match.currentOver ? match.currentOver.toFixed(1) : "0.0";
     
     let eventsHTML = '';
-    if (isLive && match.events && match.events.length > 0) {
+    // Enable commentary for both LIVE and FT (Result) statuses
+    if ((isLive || isResult) && match.events && match.events.length > 0) {
         eventsHTML = match.events.slice().reverse().map(e => {
             const isWicket = e.type === 'WICKET' || e.type === 'HOWZAT!', isBoundary = e.type === '4' || e.type === '6';
             let duckBadge = ''; if (e.duckType === 'golden') duckBadge = `<span class="inline-block ml-2 bg-penrice-gold text-slate-900 text-[9px] font-bold px-1.5 py-px uppercase rounded-sm animate-pulse border border-yellow-500">QUACK QUACK!</span>`; else if (e.duckType === 'regular') duckBadge = `<span class="inline-block ml-2 bg-slate-900 text-white text-[9px] font-bold px-1.5 py-px uppercase rounded-sm border border-black">QUACK!</span>`;
@@ -154,6 +156,8 @@ function createMatchCard(match) {
     const homeHighlight = isPenriceBatting ? 'bg-yellow-50 border-l-4 border-penrice-gold pl-2 -ml-2 rounded-r-sm' : '';
     const awayHighlight = !isPenriceBatting ? 'bg-yellow-50 border-l-4 border-penrice-gold pl-2 -ml-2 rounded-r-sm' : '';
 
+    const emptyCommentaryText = isResult ? 'Match details unavailable.' : 'Waiting for play to start...';
+
     anchor.innerHTML = `<div class="match-card group/card">
         <div class="bg-white px-6 py-3 border-b border-slate-100 flex justify-between items-center"><div class="flex items-center gap-3">${isLive ? `<span class="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 uppercase tracking-wider animate-pulse">LIVE</span>` : (isResult ? `<span class="bg-slate-800 text-white text-[10px] font-bold px-2 py-0.5 uppercase tracking-wider">RESULT</span>` : `<span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 uppercase tracking-wider">UPCOMING</span>`)}<span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${match.league || 'Fixture'} • ${match.format || 'Match'}</span></div>${isLive ? `<div class="text-[10px] font-bold text-slate-500 uppercase">${currentOver} OVERS</div>` : ''}</div>
         <div class="px-6 py-5">
@@ -163,7 +167,7 @@ function createMatchCard(match) {
             ${isLive ? `<div class="mt-6 pt-4 border-t border-slate-100 grid grid-cols-2 gap-8"><div><div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">At Bat</div><div class="flex flex-col gap-1"><div class="flex justify-between text-xs font-bold text-slate-800"><span>${match.currentStriker || 'Striker'} 🏏</span><span class="text-slate-500 font-mono">${(match[isPenriceBatting ? 'homeTeamStats' : 'awayTeamStats'] || []).find(p=>p.name===match.currentStriker)?.runs || 0}</span></div><div class="flex justify-between text-xs font-medium text-slate-500"><span>${match.currentNonStriker || 'Non-Striker'}</span><span class="font-mono opacity-60">${(match[isPenriceBatting ? 'homeTeamStats' : 'awayTeamStats'] || []).find(p=>p.name===match.currentNonStriker)?.runs || 0}</span></div></div></div><div class="border-l border-slate-100 pl-8"><div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">Bowling</div><div class="text-xs font-bold text-slate-800">${match.currentBowler || 'Changing'}</div><div class="text-[10px] text-slate-500 mt-0.5 font-mono">${bowlerStatsText}</div></div></div>` : ''}
         </div>
         <div class="bg-slate-50 py-1.5 flex justify-center border-t border-slate-100"><i class="fa-solid fa-chevron-down text-[10px] text-slate-300"></i></div>
-        <div class="match-insights" data-lenis-prevent><div class="flex flex-col md:flex-row bg-white h-[50vh] w-full shrink-0"><div class="w-full md:w-5/12 bg-slate-50/50 p-5 border-r border-slate-100 custom-scroll overflow-y-auto h-full" data-lenis-prevent><div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 sticky top-0 bg-slate-50/95 py-2 z-10 w-full border-b border-slate-100">Live Commentary</div><div class="relative pt-2">${eventsHTML || '<div class="text-center text-xs text-slate-400 py-10 italic">Waiting for play to start...</div>'}</div></div><div class="w-full md:w-7/12 p-5 custom-scroll overflow-y-auto h-full" data-lenis-prevent><div class="flex gap-4 mb-4 border-b border-slate-100 pb-3 sticky top-0 bg-white z-10"><button id="btn-home-${match.id}" onclick="window.switchTab('${match.id}', 'home')" class="tab-btn ${activeTab === 'home' ? 'tab-active' : 'tab-inactive'}">${match.teamName}</button><button id="btn-away-${match.id}" onclick="window.switchTab('${match.id}', 'away')" class="tab-btn ${activeTab === 'away' ? 'tab-active' : 'tab-inactive'}">${match.opponent}</button></div><div id="scorecard-home-${match.id}" class="${activeTab === 'home' ? 'block' : 'hidden'}">${homeHTML}</div><div id="scorecard-away-${match.id}" class="${activeTab === 'away' ? 'block' : 'hidden'}">${awayHTML}</div></div></div></div>
+        <div class="match-insights" data-lenis-prevent><div class="flex flex-col md:flex-row bg-white h-[50vh] w-full shrink-0"><div class="w-full md:w-5/12 bg-slate-50/50 p-5 border-r border-slate-100 custom-scroll overflow-y-auto h-full" data-lenis-prevent><div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 sticky top-0 bg-slate-50/95 py-2 z-10 w-full border-b border-slate-100">Live Commentary</div><div class="relative pt-2">${eventsHTML || `<div class="text-center text-xs text-slate-400 py-10 italic">${emptyCommentaryText}</div>`}</div></div><div class="w-full md:w-7/12 p-5 custom-scroll overflow-y-auto h-full" data-lenis-prevent><div class="flex gap-4 mb-4 border-b border-slate-100 pb-3 sticky top-0 bg-white z-10"><button id="btn-home-${match.id}" onclick="window.switchTab('${match.id}', 'home')" class="tab-btn ${activeTab === 'home' ? 'tab-active' : 'tab-inactive'}">${match.teamName}</button><button id="btn-away-${match.id}" onclick="window.switchTab('${match.id}', 'away')" class="tab-btn ${activeTab === 'away' ? 'tab-active' : 'tab-inactive'}">${match.opponent}</button></div><div id="scorecard-home-${match.id}" class="${activeTab === 'home' ? 'block' : 'hidden'}">${homeHTML}</div><div id="scorecard-away-${match.id}" class="${activeTab === 'away' ? 'block' : 'hidden'}">${awayHTML}</div></div></div></div>
     </div>`;
     return anchor;
 }
@@ -344,8 +348,8 @@ window.switchInnings = async (id) => {
         currentStriker: p1, 
         currentNonStriker: p2, 
         currentBowler: '', 
-        [prevBattingStatsKey]: prevBattingList, 
-        [nextBattingStatsKey]: nextBattingList, 
+        [prevBattingStatsKey]: prevBattingStatsKey, 
+        [nextBattingStatsKey]: nextBattingStatsKey, 
         events: [...(match.events||[]), { type: 'INNINGS BREAK', player: '', time: 'END', desc: 'Innings Closed. Teams Switched.' }] 
     });
 };
