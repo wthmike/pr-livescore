@@ -1,3 +1,4 @@
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, collection, doc, onSnapshot, updateDoc, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -123,15 +124,29 @@ function generateScorecardHTML(battingStats, bowlingStats, strikerName) {
 }
 
 function createMatchCard(match) {
-    const isLive = match.status === 'LIVE', isResult = match.status === 'FT' || match.status === 'Result', anchor = document.createElement('div'); anchor.className = "card-anchor";
-    const isPenriceBatting = match.penriceStatus === 'batting', homeScoreText = `${match.homeScore || 0}-${match.homeWickets || 0}`, awayScoreText = `${match.awayScore || 0}-${match.awayWickets || 0}`, currentOver = match.currentOver ? match.currentOver.toFixed(1) : "0.0";
+    const rawStatus = (match.status || '').toUpperCase();
+    const isLive = rawStatus === 'LIVE';
+    const isResult = rawStatus === 'FT' || rawStatus === 'RESULT';
+    const anchor = document.createElement('div'); 
+    anchor.className = "card-anchor";
+
+    const isPenriceBatting = match.penriceStatus === 'batting';
+    const homeScoreText = `${match.homeScore || 0}-${match.homeWickets || 0}`;
+    const awayScoreText = `${match.awayScore || 0}-${match.awayWickets || 0}`;
+    const currentOver = match.currentOver ? match.currentOver.toFixed(1) : "0.0";
     
     let eventsHTML = '';
-    // Use events if they exist, regardless of status. This ensures commentary shows even if status is stale.
-    if (match.events && match.events.length > 0) {
-        eventsHTML = match.events.slice().reverse().map(e => {
-            const isWicket = e.type === 'WICKET' || e.type === 'HOWZAT!', isBoundary = e.type === '4' || e.type === '6';
-            let duckBadge = ''; if (e.duckType === 'golden') duckBadge = `<span class="inline-block ml-2 bg-penrice-gold text-slate-900 text-[9px] font-bold px-1.5 py-px uppercase rounded-sm animate-pulse border border-yellow-500">QUACK QUACK!</span>`; else if (e.duckType === 'regular') duckBadge = `<span class="inline-block ml-2 bg-slate-900 text-white text-[9px] font-bold px-1.5 py-px uppercase rounded-sm border border-black">QUACK!</span>`;
+    const matchEvents = match.events || [];
+    
+    // Always generate HTML if events exist, regardless of status
+    if (matchEvents.length > 0) {
+        eventsHTML = matchEvents.slice().reverse().map(e => {
+            const isWicket = e.type === 'WICKET' || e.type === 'HOWZAT!';
+            const isBoundary = e.type === '4' || e.type === '6';
+            let duckBadge = ''; 
+            if (e.duckType === 'golden') duckBadge = `<span class="inline-block ml-2 bg-penrice-gold text-slate-900 text-[9px] font-bold px-1.5 py-px uppercase rounded-sm animate-pulse border border-yellow-500">QUACK QUACK!</span>`; 
+            else if (e.duckType === 'regular') duckBadge = `<span class="inline-block ml-2 bg-slate-900 text-white text-[9px] font-bold px-1.5 py-px uppercase rounded-sm border border-black">QUACK!</span>`;
+            
             let eventMarker = '';
             if(isWicket) eventMarker = `<span class="bg-red-600 text-white px-1.5 py-px text-[10px] font-display uppercase font-bold tracking-wider mr-2">HOWZAT!</span>`;
             else if(isBoundary) eventMarker = `<span class="inline-flex items-center justify-center w-6 h-6 border-2 border-penrice-navy text-penrice-navy font-bold text-xs rounded mr-2 pulsating-box">${e.type}</span>`;
@@ -142,7 +157,9 @@ function createMatchCard(match) {
     }
     
     if (!cardTabState[match.id]) cardTabState[match.id] = isPenriceBatting ? 'home' : 'away';
-    const activeTab = cardTabState[match.id], homeHTML = generateScorecardHTML(match.homeTeamStats, match.awayTeamStats, match.currentStriker), awayHTML = generateScorecardHTML(match.awayTeamStats, match.homeTeamStats, match.currentStriker);
+    const activeTab = cardTabState[match.id];
+    const homeHTML = generateScorecardHTML(match.homeTeamStats, match.awayTeamStats, match.currentStriker);
+    const awayHTML = generateScorecardHTML(match.awayTeamStats, match.homeTeamStats, match.currentStriker);
     
     let bowlerStatsText = '0-0 (0.0)';
     if (isLive && match.currentBowler) {
@@ -155,7 +172,11 @@ function createMatchCard(match) {
     const homeHighlight = isPenriceBatting ? 'bg-yellow-50 border-l-4 border-penrice-gold pl-2 -ml-2 rounded-r-sm' : '';
     const awayHighlight = !isPenriceBatting ? 'bg-yellow-50 border-l-4 border-penrice-gold pl-2 -ml-2 rounded-r-sm' : '';
 
-    const emptyCommentaryText = isResult ? 'Match Concluded.' : 'Waiting for play to start...';
+    // Robust empty state text based on robust isResult check
+    let emptyCommentaryText = 'Waiting for play to start...';
+    if (isResult) {
+        emptyCommentaryText = 'Match Concluded. No commentary recorded.';
+    }
 
     anchor.innerHTML = `<div class="match-card group/card">
         <div class="bg-white px-6 py-3 border-b border-slate-100 flex justify-between items-center"><div class="flex items-center gap-3">${isLive ? `<span class="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 uppercase tracking-wider animate-pulse">LIVE</span>` : (isResult ? `<span class="bg-slate-800 text-white text-[10px] font-bold px-2 py-0.5 uppercase tracking-wider">RESULT</span>` : `<span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 uppercase tracking-wider">UPCOMING</span>`)}<span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${match.league || 'Fixture'} • ${match.format || 'Match'}</span></div>${isLive ? `<div class="text-[10px] font-bold text-slate-500 uppercase">${currentOver} OVERS</div>` : ''}</div>
